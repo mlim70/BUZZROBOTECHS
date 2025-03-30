@@ -7,6 +7,8 @@ from datetime import datetime
 ser = None
 debug_thread = None
 should_stop = False
+last_error_time = 0
+error_cooldown = 5  # seconds to wait between retries
 
 def read_debug_messages():
     """
@@ -29,12 +31,14 @@ def initialize_serial():
     Initialize the serial connection.
     Returns True if successful, False otherwise.
     """
-    global ser, debug_thread, should_stop
+    global ser, debug_thread, should_stop, last_error_time
     try:
         # Try different common port names
         ports = ['/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyACM0', '/dev/ttyACM1']
         for port in ports:
             try:
+                if ser is not None and ser.is_open:
+                    ser.close()
                 ser = serial.Serial(port, 115200, timeout=1)
                 print(f"Successfully connected to {port}")
                 time.sleep(2)  # Give time for the connection to establish
@@ -46,7 +50,8 @@ def initialize_serial():
                 debug_thread.start()
                 
                 return True
-            except serial.SerialException:
+            except serial.SerialException as e:
+                print(f"Failed to connect to {port}: {e}")
                 continue
         
         raise Exception("Could not find Arduino on any common ports")
@@ -64,14 +69,17 @@ def target_detected_action(detection, rvec, tvec):
       rvec: Rotation vector (Rodrigues form).
       tvec: Translation vector (in meters).
     """
-    global ser
+    global ser, last_error_time
     
     print("\n==== TARGET DETECTED ====")
     print(f"Tag ID: {detection.getId()}")
     print(f"Translation (meters): {tvec.ravel()}")
     print(f"Rotation vector: {rvec.ravel()}")
     
-    if ser is None or not ser.is_open:
+    current_time = time.time()
+    
+    # Check if we need to retry connection
+    if ser is None or not ser.is_open or (current_time - last_error_time) > error_cooldown:
         if not initialize_serial():
             print("Failed to send data: No serial connection")
             return
@@ -85,9 +93,17 @@ def target_detected_action(detection, rvec, tvec):
         # Format: x,y,z,rx,ry,rz
         message = f"{x:.3f},{y:.3f},{z:.3f},{rx:.3f},{ry:.3f},{rz:.3f}\n"
         ser.write(message.encode('utf-8'))
+        ser.flush()  # Ensure the data is sent
         print(f"Sent data: {message.strip()}")
     except Exception as e:
         print(f"Error sending data: {e}")
+        last_error_time = current_time
+        if ser is not None and ser.is_open:
+            try:
+                ser.close()
+            except:
+                pass
+            ser = None
 
 def cleanup_serial():
     """
@@ -98,5 +114,8 @@ def cleanup_serial():
     if debug_thread is not None:
         debug_thread.join(timeout=1.0)
     if ser is not None and ser.is_open:
-        ser.close()
+        try:
+            ser.close()
+        except:
+            pass
         print("Serial connection closed") 

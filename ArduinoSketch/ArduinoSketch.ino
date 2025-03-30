@@ -18,26 +18,18 @@ int ENA2 = 11; // Back-Left PWM speed
 int ENB2 = 6;  // Back-Right PWM speed
 
 // -----------------------------
-// PID Control Variables
-// -----------------------------
-float Kp = 100.0;
-float Ki = 0.0;
-float Kd = 20.0;
-float prevError = 0.0;
-float integral = 0.0;
-unsigned long lastTime = 0;
-
-// -----------------------------
 // Navigation thresholds (in meters)
 // -----------------------------
-float approachThreshold = 0.3; // Stop if tag is closer than 30cm
+float centerThreshold = 0.05;   // ±5 cm off-center
+float approachThreshold = 0.3;  // Stop if tag is closer than 30 cm
 
 // -----------------------------
 // Function Prototypes
 // -----------------------------
-void driveForwardPID(int leftSpeed, int rightSpeed);
+void forward();
+void turnLeft();
+void turnRight();
 void haltMotors();
-float computePID(float error);
 
 void setup() {
   Serial.begin(115200);
@@ -47,33 +39,67 @@ void setup() {
   for (int i = 0; i < 12; i++) {
     pinMode(motorPins[i], OUTPUT);
   }
-  
-  lastTime = millis();
 }
 
 // -----------------------------
 // Motor Control Functions
 // -----------------------------
-// driveForwardPID: drives forward with separate left/right speeds
-void driveForwardPID(int leftSpeed, int rightSpeed) {
+void forward() {
   // Front Wheels
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
-  analogWrite(ENA, leftSpeed);
-  analogWrite(ENB, rightSpeed);
+  analogWrite(ENA, 150);
+  analogWrite(ENB, 150);
   
   // Back Wheels
   digitalWrite(IN5, HIGH);
   digitalWrite(IN6, LOW);
   digitalWrite(IN7, LOW);
   digitalWrite(IN8, HIGH);
-  analogWrite(ENA2, leftSpeed);
-  analogWrite(ENB2, rightSpeed);
+  analogWrite(ENA2, 150);
+  analogWrite(ENB2, 150);
 }
 
-// haltMotors: stops all motors
+void turnLeft() {
+  // Left Wheels (backward)
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN5, LOW);
+  digitalWrite(IN6, HIGH);
+  
+  // Right Wheels (forward)
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  digitalWrite(IN7, HIGH);
+  digitalWrite(IN8, LOW);
+  
+  analogWrite(ENA, 200);
+  analogWrite(ENB, 200);
+  analogWrite(ENA2, 200);
+  analogWrite(ENB2, 200);
+}
+
+void turnRight() {
+  // Left Wheels (forward)
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN5, HIGH);
+  digitalWrite(IN6, LOW);
+  
+  // Right Wheels (backward)
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  digitalWrite(IN7, LOW);
+  digitalWrite(IN8, HIGH);
+  
+  analogWrite(ENA, 200);
+  analogWrite(ENB, 200);
+  analogWrite(ENA2, 200);
+  analogWrite(ENB2, 200);
+}
+
 void haltMotors() {
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, LOW);
@@ -90,27 +116,13 @@ void haltMotors() {
   analogWrite(ENB2, 0);
 }
 
-// computePID: calculates the PID output for the given error
-float computePID(float error) {
-  unsigned long now = millis();
-  float dt = (now - lastTime) / 1000.0; // convert to seconds
-  if (dt <= 0.0) dt = 0.001; // prevent division by zero
-  
-  integral += error * dt;
-  float derivative = (error - prevError) / dt;
-  float output = Kp * error + Ki * integral + Kd * derivative;
-  prevError = error;
-  lastTime = now;
-  
-  return output;
-}
-
 // -----------------------------
-// Main Loop: Read Serial Data & Navigate
+// Main Loop: Read Serial Data & Navigate Without PID
 // -----------------------------
 void loop() {
+  // Check if Serial data is available
   if (Serial.available()) {
-    // Read incoming data until newline character
+    // Read the incoming data until newline character
     String data = Serial.readStringUntil('\n');
     
     // Parse the comma-separated values
@@ -120,61 +132,53 @@ void loop() {
     int comma4 = data.indexOf(',', comma3 + 1);
     int comma5 = data.indexOf(',', comma4 + 1);
     
-    // Check if commas are in correct order
-    if (comma1 > 0 && comma2 > comma1 && comma3 > comma2 && 
+    if (comma1 > 0 && comma2 > comma1 && comma3 > comma2 &&
         comma4 > comma3 && comma5 > comma4) {
+      
+      String x_str  = data.substring(0, comma1);
+      String y_str  = data.substring(comma1 + 1, comma2);
+      String z_str  = data.substring(comma2 + 1, comma3);
+      String rx_str = data.substring(comma3 + 1, comma4);
+      String ry_str = data.substring(comma4 + 1, comma5);
+      String rz_str = data.substring(comma5 + 1);
+      
+      if (x_str.length() > 0 && y_str.length() > 0 && z_str.length() > 0 &&
+          rx_str.length() > 0 && ry_str.length() > 0 && rz_str.length() > 0) {
         
-        // Convert directly to floats (will be 0.0 if conversion fails)
-        float x = data.substring(0, comma1).toFloat();
-        float y = data.substring(comma1 + 1, comma2).toFloat();
-        float z = data.substring(comma2 + 1, comma3).toFloat();
-        float rx = data.substring(comma3 + 1, comma4).toFloat();
-        float ry = data.substring(comma4 + 1, comma5).toFloat();
-        float rz = data.substring(comma5 + 1).toFloat();
+        // Convert strings to float values
+        float x = x_str.toFloat();
+        float y = y_str.toFloat();
+        float z = z_str.toFloat();
+        float rx = rx_str.toFloat();
+        float ry = ry_str.toFloat();
+        float rz = rz_str.toFloat();
         
-        // Check if any value is 0 (indicating conversion failure)
-        if (x != 0.0 || y != 0.0 || z != 0.0 || 
-            rx != 0.0 || ry != 0.0 || rz != 0.0) {
-            
-            // Print received data for debugging
-            Serial.print("DEBUG: Position (m): ");
-            Serial.print(x); Serial.print(", ");
-            Serial.print(y); Serial.print(", ");
-            Serial.println(z);
-            
-            // Use PID control for smooth movement
-            float error = x;  // Use x position as error
-            float pidOutput = computePID(error);
-            
-            // Base speed for forward motion
-            int baseSpeed = 150;
-            
-            // Calculate motor speeds using PID output
-            int leftSpeed = baseSpeed + pidOutput;
-            int rightSpeed = baseSpeed - pidOutput;
-            
-            // Ensure speeds are within valid PWM range
-            leftSpeed = constrain(leftSpeed, 0, 255);
-            rightSpeed = constrain(rightSpeed, 0, 255);
-            
-            // Drive the motors using the PID-calculated speeds
-            driveForwardPID(leftSpeed, rightSpeed);
-            
-            // Print debug information
-            Serial.print("DEBUG: PID output: ");
-            Serial.println(pidOutput);
-            Serial.print("DEBUG: Left speed: ");
-            Serial.print(leftSpeed);
-            Serial.print(" | Right speed: ");
-            Serial.println(rightSpeed);
-            
+        // Navigation Decision:
+        // If the tag is far (z > approachThreshold), adjust motion based on x.
+        if (z > approachThreshold) {
+          if (x > centerThreshold) {
+            Serial.println("RIGHT");
+            turnRight();
+          } else if (x < -centerThreshold) {
+            Serial.println("LEFT");
+            turnLeft();
+          } else {
+            Serial.println("FORWARD");
+            forward();
+          }
         } else {
-            Serial.println("DEBUG: Error: Invalid number format");
-            haltMotors();
+          // Tag is close enough, so stop.
+          Serial.println("STOP");
+          haltMotors();
         }
+      } else {
+        Serial.println("ERR: Missing values");
+      }
     } else {
-        Serial.println("DEBUG: Error: Invalid comma positions");
-        haltMotors();
+      Serial.println("ERR: Invalid format");
     }
   }
+  // Optionally, if no new serial data is received, you can choose to maintain the last command
+  // or halt the motors:
+  haltMotors(); // uncomment this if you want to stop when no data is available.
 }

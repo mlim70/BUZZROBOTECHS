@@ -72,8 +72,6 @@ def main():
         print("Loading calibration data...")
         camera_matrix, dist_coeffs = load_calibration(args.calib)
         print("Calibration data loaded successfully")
-        print(f"Camera matrix shape: {camera_matrix.shape}")
-        print(f"Distortion coefficients shape: {dist_coeffs.shape}")
     except Exception as e:
         print(f"Error loading calibration data: {e}")
         return
@@ -91,105 +89,105 @@ def main():
         picam2 = Picamera2()
         print("Camera object created")
         
-        print("Creating preview configuration...")
-        # Create a configuration optimized for AprilTag detection
+        # List available camera configurations
+        print("\nAvailable camera configurations:")
+        configs = picam2.list_cameras()
+        for i, config in enumerate(configs):
+            print(f"{i}: {config}")
+        
+        if not configs:
+            raise Exception("No camera configurations found")
+        
+        print("\nCreating preview configuration...")
         config = picam2.create_preview_configuration(
-            main={"size": (1280, 720)},  # Use 720p for better performance
+            main={"size": (1280, 720)},
             controls={
-                "FrameDurationLimits": (33333, 33333),  # 30fps
-                "ExposureTime": 10000,  # 10ms exposure
-                "AeEnable": True,       # Enable auto exposure
-                "AwbEnable": True,      # Enable auto white balance
-                "Contrast": 1.5,        # Increase contrast for better edge detection
-                "Sharpness": 1.5,       # Increase sharpness
-                "Brightness": 0.1       # Slightly increase brightness
+                "FrameDurationLimits": (33333, 33333),
+                "ExposureTime": 10000,
+                "AeEnable": True,
+                "AwbEnable": True,
+                "Contrast": 1.5,
+                "Sharpness": 1.5,
+                "Brightness": 0.1
             }
         )
+        
         print("Configuring camera...")
         picam2.configure(config)
         print("Starting camera...")
         picam2.start()
         print("Camera initialization complete")
+        
     except Exception as e:
         print(f"Error initializing camera: {e}")
+        print("\nTroubleshooting steps:")
+        print("1. Check if the camera is properly connected")
+        print("2. Run 'vcgencmd get_camera' to check camera status")
+        print("3. Check if camera is enabled in raspi-config")
+        print("4. Try rebooting the Raspberry Pi")
         return
 
     print("Starting continuous detection. Press 'q' to quit.")
     frame_count = 0
+    last_print_time = time.time()
+    print_interval = 1.0  # Print status every 1 second
     
     while True:
         try:
             frame_count += 1
-            print(f"\nProcessing frame {frame_count}")
+            current_time = time.time()
             
-            print("Capturing frame...")
+            # Only print status every print_interval seconds
+            if current_time - last_print_time >= print_interval:
+                print(f"\nFrame {frame_count} - Processing...")
+                last_print_time = current_time
+            
             frame = picam2.capture_array()
-            print(f"Frame captured, shape: {frame.shape}")
-            
-            print("Converting color space...")
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
             if args.upscale != 1.0:
-                print(f"Upscaling frame by factor {args.upscale}")
                 frame = cv2.resize(frame, None, fx=args.upscale, fy=args.upscale, interpolation=cv2.INTER_LINEAR)
             
-            print("Detecting AprilTags...")
             detections = detect_tags(frame, detector)
-            print(f"Found {len(detections)} tags")
-            
             target_detected = False
             x, y, z = 0, 0, 0
             distance = 0
             
             for detection in detections:
-                print(f"Processing tag ID: {detection.getId()}")
                 if detection.getId() == args.target:
-                    print("Target tag found, estimating pose...")
                     rvec, tvec = estimate_pose(detection, camera_matrix, dist_coeffs, args.tag_size)
                     if rvec is not None and tvec is not None:
-                        print("Pose estimated successfully")
                         target_detected = True
                         target_detected_action(detection, rvec, tvec)
-                        
-                        # Get coordinate information
                         x, y, z = tvec.flatten()
                         distance = np.linalg.norm(tvec)
                         
-                        # Print coordinates to console
-                        print(f"\n=== COORDINATES TO TARGET TAG {args.target} ===")
-                        print(f"X: {x:.3f}m")
-                        print(f"Y: {y:.3f}m")
-                        print(f"Z: {z:.3f}m")
-                        print(f"Distance: {distance:.3f}m")
-                        print("==========================================\n")
-                    else:
-                        print("Failed to estimate pose")
+                        # Only print coordinates when target is detected
+                        if current_time - last_print_time >= print_interval:
+                            print(f"\n=== TARGET TAG {args.target} DETECTED ===")
+                            print(f"X: {x:.3f}m | Y: {y:.3f}m | Z: {z:.3f}m")
+                            print(f"Distance: {distance:.3f}m")
+                            print("==========================================\n")
             
-            # Draw detections
-            print("Drawing detections...")
             annotated = draw_detections(frame.copy(), detections, args.target)
-            
-            # Draw information overlay
-            print("Drawing information overlay...")
             annotated = draw_info_overlay(annotated, target_detected, args.target, x, y, z, distance)
             
-            print("Displaying frame...")
             cv2.imshow("AprilTag Pose Estimation", annotated)
             
-            print("Waiting for key press...")
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Quit command received")
                 break
                 
         except Exception as e:
             print(f"Error in main loop: {e}")
-            break
+            time.sleep(1)
+            continue
 
     print("Cleaning up...")
     try:
         picam2.stop()
         cv2.destroyAllWindows()
-        from .actions import cleanup_serial
+        from .send_data import cleanup_serial
         cleanup_serial()
         print("Cleanup complete")
     except Exception as e:
