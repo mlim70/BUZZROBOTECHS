@@ -95,8 +95,6 @@ def main():
             controls={
                 "FrameDurationLimits": (33333, 33333),  # 30fps
                 "ExposureTime": 10000,  # 10ms exposure
-                "AnalogueGain": 1.0,    # Reduce noise
-                "DigitalGain": 1.0,     # Reduce noise
                 "AeEnable": True,       # Enable auto exposure
                 "AwbEnable": True,      # Enable auto white balance
                 "AfMode": 2,            # Continuous autofocus
@@ -110,8 +108,6 @@ def main():
         picam2.configure(config)
         print("Starting camera...")
         picam2.start()
-        print("Waiting for camera to adjust...")
-        time.sleep(2)
         print("Camera initialization complete")
     except Exception as e:
         print(f"Error initializing camera: {e}")
