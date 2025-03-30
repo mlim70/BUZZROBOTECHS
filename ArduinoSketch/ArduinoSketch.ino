@@ -31,6 +31,13 @@ void turnLeft();
 void turnRight();
 void haltMotors();
 
+// -----------------------------
+// State tracking
+// -----------------------------
+unsigned long lastCommandTime = 0;
+const unsigned long COMMAND_TIMEOUT = 1000; // 1 second timeout
+bool lastCommandValid = false;
+
 void setup() {
   Serial.begin(115200);
   
@@ -60,6 +67,9 @@ void forward() {
   digitalWrite(IN8, HIGH);
   analogWrite(ENA2, 150);
   analogWrite(ENB2, 150);
+  
+  lastCommandTime = millis();
+  lastCommandValid = true;
 }
 
 void turnLeft() {
@@ -79,6 +89,9 @@ void turnLeft() {
   analogWrite(ENB, 200);
   analogWrite(ENA2, 200);
   analogWrite(ENB2, 200);
+  
+  lastCommandTime = millis();
+  lastCommandValid = true;
 }
 
 void turnRight() {
@@ -98,6 +111,9 @@ void turnRight() {
   analogWrite(ENB, 200);
   analogWrite(ENA2, 200);
   analogWrite(ENB2, 200);
+  
+  lastCommandTime = millis();
+  lastCommandValid = true;
 }
 
 void haltMotors() {
@@ -114,6 +130,8 @@ void haltMotors() {
   digitalWrite(IN8, LOW);
   analogWrite(ENA2, 0);
   analogWrite(ENB2, 0);
+  
+  lastCommandValid = false;
 }
 
 // -----------------------------
@@ -178,7 +196,10 @@ void loop() {
       Serial.println("ERR: Invalid format");
     }
   }
-  // Optionally, if no new serial data is received, you can choose to maintain the last command
-  // or halt the motors:
-  haltMotors(); // uncomment this if you want to stop when no data is available.
+  
+  // Check if we've exceeded the command timeout
+  if (lastCommandValid && (millis() - lastCommandTime > COMMAND_TIMEOUT)) {
+    Serial.println("TIMEOUT");
+    haltMotors();
+  }
 }

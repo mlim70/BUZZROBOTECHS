@@ -89,15 +89,6 @@ def main():
         picam2 = Picamera2()
         print("Camera object created")
         
-        # List available camera configurations
-        print("\nAvailable camera configurations:")
-        configs = picam2.list_cameras()
-        for i, config in enumerate(configs):
-            print(f"{i}: {config}")
-        
-        if not configs:
-            raise Exception("No camera configurations found")
-        
         print("\nCreating preview configuration...")
         config = picam2.create_preview_configuration(
             main={"size": (1280, 720)},
