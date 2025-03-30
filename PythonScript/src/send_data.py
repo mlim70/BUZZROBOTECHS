@@ -1,21 +1,55 @@
 import serial
 import time
+import threading
+from datetime import datetime
 
 # Global serial connection
 ser = None
+debug_thread = None
+should_stop = False
+
+def read_debug_messages():
+    """
+    Continuously read and print debug messages from the Arduino.
+    """
+    global ser, should_stop
+    while not should_stop and ser is not None and ser.is_open:
+        if ser.in_waiting:
+            try:
+                line = ser.readline().decode('utf-8').strip()
+                # Print all messages from Arduino with timestamp
+                timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                print(f"[{timestamp}] Arduino: {line}")
+            except Exception as e:
+                print(f"Error reading debug message: {e}")
+        time.sleep(0.01)  # Small delay to prevent CPU overuse
 
 def initialize_serial():
     """
     Initialize the serial connection.
     Returns True if successful, False otherwise.
     """
-    global ser
+    global ser, debug_thread, should_stop
     try:
-        # Open the serial port (update '/dev/ttyUSB0' or '/dev/ttyACM0' as needed)
-        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
-        time.sleep(2)  # Give time for the connection to establish
-        print("Serial connection established successfully")
-        return True
+        # Try different common port names
+        ports = ['/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyACM0', '/dev/ttyACM1']
+        for port in ports:
+            try:
+                ser = serial.Serial(port, 115200, timeout=1)
+                print(f"Successfully connected to {port}")
+                time.sleep(2)  # Give time for the connection to establish
+                
+                # Start debug message reading thread
+                should_stop = False
+                debug_thread = threading.Thread(target=read_debug_messages)
+                debug_thread.daemon = True
+                debug_thread.start()
+                
+                return True
+            except serial.SerialException:
+                continue
+        
+        raise Exception("Could not find Arduino on any common ports")
     except Exception as e:
         print(f"Error establishing serial connection: {e}")
         return False
@@ -32,7 +66,7 @@ def target_detected_action(detection, rvec, tvec):
     """
     global ser
     
-    print("==== TARGET DETECTED ====")
+    print("\n==== TARGET DETECTED ====")
     print(f"Tag ID: {detection.getId()}")
     print(f"Translation (meters): {tvec.ravel()}")
     print(f"Rotation vector: {rvec.ravel()}")
@@ -59,7 +93,10 @@ def cleanup_serial():
     """
     Clean up the serial connection.
     """
-    global ser
+    global ser, debug_thread, should_stop
+    should_stop = True
+    if debug_thread is not None:
+        debug_thread.join(timeout=1.0)
     if ser is not None and ser.is_open:
         ser.close()
         print("Serial connection closed") 
