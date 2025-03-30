@@ -18,13 +18,11 @@ def draw_info_overlay(frame, target_detected, tag_id, x, y, z, distance):
     error_color = (0, 0, 255)    # Red
     text_color = (255, 255, 255) # White
     
-    # Draw status with smaller text
-    status_text = "TARGET DETECTED" if target_detected else "TARGET NOT DETECTED"
-    status_color = success_color if target_detected else error_color
-    cv2.putText(frame, status_text, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 1)
-    
     if target_detected:
+        # Draw status
+        cv2.putText(frame, "TARGET DETECTED", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, success_color, 1)
+        
         # Draw tag ID
         cv2.putText(frame, f"Tag ID: {tag_id}", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
@@ -43,9 +41,9 @@ def draw_info_overlay(frame, target_detected, tag_id, x, y, z, distance):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
     else:
         # Draw a subtle "not detected" message
-        cv2.putText(frame, "No target detected", 
-                    (10, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, error_color, 1)
+        cv2.putText(frame, "TARGET NOT DETECTED", 
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, error_color, 1)
     
     return frame
 
@@ -91,7 +89,23 @@ def main():
         print("Camera object created")
         
         print("Creating preview configuration...")
-        config = picam2.create_preview_configuration()
+        # Create a configuration optimized for AprilTag detection
+        config = picam2.create_preview_configuration(
+            main={"size": (1920, 1080)},  # Try 1080p first
+            controls={
+                "FrameDurationLimits": (33333, 33333),  # 30fps
+                "ExposureTime": 10000,  # 10ms exposure
+                "AnalogueGain": 1.0,    # Reduce noise
+                "DigitalGain": 1.0,     # Reduce noise
+                "AeEnable": True,       # Enable auto exposure
+                "AwbEnable": True,      # Enable auto white balance
+                "AfMode": 2,            # Continuous autofocus
+                "AfSpeed": 0,           # Fast autofocus
+                "Contrast": 1.5,        # Increase contrast for better edge detection
+                "Sharpness": 1.5,       # Increase sharpness
+                "Brightness": 0.1       # Slightly increase brightness
+            }
+        )
         print("Configuring camera...")
         picam2.configure(config)
         print("Starting camera...")
