@@ -1,3 +1,6 @@
+#python3 -m src.main --source 0 --target 27 --upscale 1 --tag_size 0.018
+# camera device index, target id, zoom factor, tag size in meters
+
 import cv2
 import argparse
 import numpy as np
