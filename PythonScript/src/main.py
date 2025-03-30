@@ -5,7 +5,7 @@ import time
 from picamera2 import Picamera2
 from config.calibration import load_calibration
 from .detector import create_detector, detect_tags, estimate_pose, draw_detections
-from .actions import target_detected_action
+from .send_data import target_detected_action
 
 def draw_info_overlay(frame, target_detected, tag_id, x, y, z, distance):
     """
@@ -186,6 +186,8 @@ def main():
     try:
         picam2.stop()
         cv2.destroyAllWindows()
+        from .actions import cleanup_serial
+        cleanup_serial()
         print("Cleanup complete")
     except Exception as e:
         print(f"Error during cleanup: {e}")
