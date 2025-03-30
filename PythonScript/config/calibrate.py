@@ -5,7 +5,7 @@ import os
 
 def calibrate_camera():
     # Chessboard dimensions
-    CHECKERBOARD = (6, 9)  # Number of inner corners per a chessboard row and column
+    CHECKERBOARD = (6, 8)  # Number of inner corners per a chessboard row and column (7x9 squares)
     SQUARE_SIZE = 0.018  # Size of each square in meters (18mm)
 
     # Prepare object points
@@ -59,7 +59,7 @@ def calibrate_camera():
     if len(objpoints) == 0:
         print("\nNo calibration images were successfully processed!")
         print("Common issues:")
-        print("1. Check if your calibration pattern is 6x9 (7x10 squares)")
+        print("1. Check if your calibration pattern is 6x8 inner corners (7x9 squares)")
         print("2. Ensure the pattern is well-lit and clearly visible")
         print("3. Make sure the pattern is flat (not curved)")
         print("4. Try capturing images at different angles and distances")
