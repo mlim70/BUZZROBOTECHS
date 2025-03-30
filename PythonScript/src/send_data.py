@@ -23,7 +23,7 @@ def initialize_serial():
 def target_detected_action(detection, rvec, tvec):
     """
     Action executed when the target AprilTag is detected.
-    Sends the tag's position data over serial.
+    Sends the tag's position and orientation data over serial.
     
     Parameters:
       detection: The detected tag object.
@@ -43,11 +43,13 @@ def target_detected_action(detection, rvec, tvec):
             return
     
     try:
-        # Get x, y, z coordinates
+        # Get x, y, z coordinates and rotation vector components
         x, y, z = tvec.flatten()
+        rx, ry, rz = rvec.flatten()
         
         # Format the message as a comma-separated string ending with a newline
-        message = f"{x:.3f},{y:.3f},{z:.3f}\n"
+        # Format: x,y,z,rx,ry,rz
+        message = f"{x:.3f},{y:.3f},{z:.3f},{rx:.3f},{ry:.3f},{rz:.3f}\n"
         ser.write(message.encode('utf-8'))
         print(f"Sent data: {message.strip()}")
     except Exception as e:
