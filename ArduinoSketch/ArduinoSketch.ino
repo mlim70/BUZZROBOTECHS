@@ -21,22 +21,24 @@ int ENB2 = 6;  // Back-Right PWM speed
 // Navigation thresholds (in meters)
 // -----------------------------
 float centerThreshold = 0.05;   // ±5 cm off-center
-float approachThreshold = 0.3;  // Stop if tag is closer than 30 cm
+float approachThreshold = 0.07;  // Stop if tag is closer than 30 cm
+float maxSpeed = 150;           // Maximum PWM speed
+float minSpeed = 50;            // Minimum PWM speed for movement
+
+// -----------------------------
+// Movement Control Variables
+// -----------------------------
+float lastX = 0;
+float lastZ = 0;
+unsigned long lastUpdateTime = 0;
+const unsigned long MOVEMENT_TIMEOUT = 100; // 100ms timeout for movement updates
 
 // -----------------------------
 // Function Prototypes
 // -----------------------------
-void forward();
-void turnLeft();
-void turnRight();
+void moveProportional(float x, float z);
 void haltMotors();
-
-// -----------------------------
-// State tracking
-// -----------------------------
-unsigned long lastCommandTime = 0;
-const unsigned long COMMAND_TIMEOUT = 1000; // 1 second timeout
-bool lastCommandValid = false;
+void updateMotors(float leftSpeed, float rightSpeed);
 
 void setup() {
   Serial.begin(115200);
@@ -46,6 +48,9 @@ void setup() {
   for (int i = 0; i < 12; i++) {
     pinMode(motorPins[i], OUTPUT);
   }
+  
+  // Initialize motors to stopped state
+  haltMotors();
 }
 
 // -----------------------------
@@ -67,17 +72,14 @@ void forward() {
   digitalWrite(IN8, HIGH);
   analogWrite(ENA2, 150);
   analogWrite(ENB2, 150);
-  
-  lastCommandTime = millis();
-  lastCommandValid = true;
 }
 
 void turnLeft() {
   // Left Wheels (backward)
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
-  digitalWrite(IN5, LOW);
-  digitalWrite(IN6, HIGH);
+  digitalWrite(IN5, HIGH);
+  digitalWrite(IN6, LOW);
   
   // Right Wheels (forward)
   digitalWrite(IN3, LOW);
@@ -85,21 +87,18 @@ void turnLeft() {
   digitalWrite(IN7, HIGH);
   digitalWrite(IN8, LOW);
   
-  analogWrite(ENA, 200);
-  analogWrite(ENB, 200);
-  analogWrite(ENA2, 200);
-  analogWrite(ENB2, 200);
-  
-  lastCommandTime = millis();
-  lastCommandValid = true;
+  analogWrite(ENA, 150);
+  analogWrite(ENB, 150);
+  analogWrite(ENA2, 150);
+  analogWrite(ENB2, 150);
 }
 
 void turnRight() {
   // Left Wheels (forward)
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
-  digitalWrite(IN5, HIGH);
-  digitalWrite(IN6, LOW);
+  digitalWrite(IN5, LOW);
+  digitalWrite(IN6, HIGH);
   
   // Right Wheels (backward)
   digitalWrite(IN3, HIGH);
@@ -107,13 +106,10 @@ void turnRight() {
   digitalWrite(IN7, LOW);
   digitalWrite(IN8, HIGH);
   
-  analogWrite(ENA, 200);
-  analogWrite(ENB, 200);
-  analogWrite(ENA2, 200);
-  analogWrite(ENB2, 200);
-  
-  lastCommandTime = millis();
-  lastCommandValid = true;
+  analogWrite(ENA, 150);
+  analogWrite(ENB, 150);
+  analogWrite(ENA2, 150);
+  analogWrite(ENB2, 150);
 }
 
 void haltMotors() {
@@ -130,14 +126,22 @@ void haltMotors() {
   digitalWrite(IN8, LOW);
   analogWrite(ENA2, 0);
   analogWrite(ENB2, 0);
-  
-  lastCommandValid = false;
 }
 
 // -----------------------------
-// Main Loop: Read Serial Data & Navigate Without PID
+// Main Loop: Read Serial Data & Navigate With Proportional Control
 // -----------------------------
 void loop() {
+  unsigned long currentTime = millis();
+  
+  // Check if we need to maintain last movement command
+  if (currentTime - lastUpdateTime > MOVEMENT_TIMEOUT) {
+    // If no new data received, maintain last movement
+    if (lastZ > approachThreshold) {
+      moveProportional(lastX, lastZ);
+    }
+  }
+  
   // Check if Serial data is available
   if (Serial.available()) {
     // Read the incoming data until newline character
@@ -156,50 +160,76 @@ void loop() {
       String x_str  = data.substring(0, comma1);
       String y_str  = data.substring(comma1 + 1, comma2);
       String z_str  = data.substring(comma2 + 1, comma3);
-      String rx_str = data.substring(comma3 + 1, comma4);
-      String ry_str = data.substring(comma4 + 1, comma5);
-      String rz_str = data.substring(comma5 + 1);
       
-      if (x_str.length() > 0 && y_str.length() > 0 && z_str.length() > 0 &&
-          rx_str.length() > 0 && ry_str.length() > 0 && rz_str.length() > 0) {
-        
+      if (x_str.length() > 0 && y_str.length() > 0 && z_str.length() > 0) {
         // Convert strings to float values
         float x = x_str.toFloat();
         float y = y_str.toFloat();
         float z = z_str.toFloat();
-        float rx = rx_str.toFloat();
-        float ry = ry_str.toFloat();
-        float rz = rz_str.toFloat();
+        
+        // Update last known position
+        lastX = x;
+        lastZ = z;
+        lastUpdateTime = currentTime;
         
         // Navigation Decision:
-        // If the tag is far (z > approachThreshold), adjust motion based on x.
         if (z > approachThreshold) {
-          if (x > centerThreshold) {
-            Serial.println("RIGHT");
-            turnRight();
-          } else if (x < -centerThreshold) {
-            Serial.println("LEFT");
-            turnLeft();
-          } else {
-            Serial.println("FORWARD");
-            forward();
-          }
+          moveProportional(x, z);
         } else {
           // Tag is close enough, so stop.
-          Serial.println("STOP");
+          Serial.println("Tag reached. Halting...");
           haltMotors();
         }
-      } else {
-        Serial.println("ERR: Missing values");
       }
-    } else {
-      Serial.println("ERR: Invalid format");
     }
   }
+}
+
+void moveProportional(float x, float z) {
+  // Calculate base speed based on distance (closer = slower)
+  float baseSpeed = map(z, approachThreshold, 1.0, minSpeed, maxSpeed);
+  baseSpeed = constrain(baseSpeed, minSpeed, maxSpeed);
   
-  // Check if we've exceeded the command timeout
-  if (lastCommandValid && (millis() - lastCommandTime > COMMAND_TIMEOUT)) {
-    Serial.println("TIMEOUT");
-    haltMotors();
-  }
+  // Calculate turn factor based on x offset
+  float turnFactor = map(x, -centerThreshold, centerThreshold, -1.0, 1.0);
+  turnFactor = constrain(turnFactor, -1.0, 1.0);
+  
+  // Calculate left and right speeds
+  float leftSpeed = baseSpeed * (1.0 + turnFactor);
+  float rightSpeed = baseSpeed * (1.0 - turnFactor);
+  
+  // Constrain speeds
+  leftSpeed = constrain(leftSpeed, 0, maxSpeed);
+  rightSpeed = constrain(rightSpeed, 0, maxSpeed);
+  
+  // Update motors with new speeds
+  updateMotors(leftSpeed, rightSpeed);
+  
+  // Debug output
+  Serial.print("Speeds - Left: ");
+  Serial.print(leftSpeed);
+  Serial.print(" Right: ");
+  Serial.println(rightSpeed);
+}
+
+void updateMotors(float leftSpeed, float rightSpeed) {
+  // Front Left
+  digitalWrite(IN1, leftSpeed > 0 ? HIGH : LOW);
+  digitalWrite(IN2, leftSpeed > 0 ? LOW : HIGH);
+  analogWrite(ENA, abs(leftSpeed));
+  
+  // Front Right
+  digitalWrite(IN3, rightSpeed > 0 ? HIGH : LOW);
+  digitalWrite(IN4, rightSpeed > 0 ? LOW : HIGH);
+  analogWrite(ENB, abs(rightSpeed));
+  
+  // Back Left
+  digitalWrite(IN5, leftSpeed > 0 ? HIGH : LOW);
+  digitalWrite(IN6, leftSpeed > 0 ? LOW : HIGH);
+  analogWrite(ENA2, abs(leftSpeed));
+  
+  // Back Right
+  digitalWrite(IN7, rightSpeed > 0 ? HIGH : LOW);
+  digitalWrite(IN8, rightSpeed > 0 ? LOW : HIGH);
+  analogWrite(ENB2, abs(rightSpeed));
 }
