@@ -20,15 +20,25 @@ def calibrate_camera():
     images = glob.glob('calib_images/*.jpg')
     print(f"Found {len(images)} calibration images")
 
-    for fname in images:
-        img = cv2.imread(fname)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if len(images) == 0:
+        print("Error: No images found in calib_images directory!")
+        return
 
-        # Find the chessboard corners
-        ret, corners = cv2.findChessboardCorners(gray, CHECKERBOARD, None)
+    for fname in images:
+        print(f"\nProcessing {fname}...")
+        img = cv2.imread(fname)
+        if img is None:
+            print(f"Error: Could not read image {fname}")
+            continue
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Try different flags for corner detection
+        flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
+        ret, corners = cv2.findChessboardCorners(gray, CHECKERBOARD, flags=flags)
 
         if ret:
-            print(f"Found corners in {fname}")
+            print(f"Successfully found corners in {fname}")
             objpoints.append(objp)
             corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), 
                                       (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
@@ -38,11 +48,22 @@ def calibrate_camera():
             img = cv2.drawChessboardCorners(img, CHECKERBOARD, corners2, ret)
             cv2.imshow('Corners', img)
             cv2.waitKey(500)  # Show each image for 500ms
+        else:
+            print(f"Failed to find corners in {fname}")
+            # Show the image that failed
+            cv2.imshow('Failed Image', img)
+            cv2.waitKey(1000)  # Show for 1 second
 
     cv2.destroyAllWindows()
 
     if len(objpoints) == 0:
-        print("No calibration images were successfully processed!")
+        print("\nNo calibration images were successfully processed!")
+        print("Common issues:")
+        print("1. Check if your calibration pattern is 6x9 (7x10 squares)")
+        print("2. Ensure the pattern is well-lit and clearly visible")
+        print("3. Make sure the pattern is flat (not curved)")
+        print("4. Try capturing images at different angles and distances")
+        print("5. Verify that the pattern is not blurry")
         return
 
     # Calibrate camera
@@ -50,7 +71,7 @@ def calibrate_camera():
 
     # Save calibration parameters
     np.savez('calibration.npz', mtx=mtx, dist=dist)
-    print("Calibration completed and saved to calibration.npz")
+    print("\nCalibration completed and saved to calibration.npz")
 
     # Print calibration results
     print("\nCamera Matrix:")
