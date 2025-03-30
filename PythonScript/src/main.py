@@ -7,6 +7,58 @@ from config.calibration import load_calibration
 from .detector import create_detector, detect_tags, estimate_pose, draw_detections
 from .actions import target_detected_action
 
+def draw_info_overlay(frame, target_detected, tag_id, x, y, z, distance):
+    """
+    Draw a clean, organized information overlay on the frame.
+    """
+    # Create a semi-transparent overlay for the info panel
+    overlay = frame.copy()
+    height, width = frame.shape[:2]
+    
+    # Define panel dimensions and position
+    panel_width = 300
+    panel_height = 200
+    panel_x = 10
+    panel_y = 10
+    
+    # Draw semi-transparent background for the panel
+    cv2.rectangle(overlay, 
+                 (panel_x, panel_y), 
+                 (panel_x + panel_width, panel_y + panel_height),
+                 (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+    
+    # Define colors
+    success_color = (0, 255, 0)  # Green
+    error_color = (0, 0, 255)    # Red
+    text_color = (255, 255, 255) # White
+    
+    # Draw status
+    status_text = "TARGET DETECTED" if target_detected else "TARGET NOT DETECTED"
+    status_color = success_color if target_detected else error_color
+    cv2.putText(frame, status_text, (panel_x + 10, panel_y + 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2)
+    
+    if target_detected:
+        # Draw tag ID
+        cv2.putText(frame, f"Tag ID: {tag_id}", (panel_x + 10, panel_y + 80),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+        
+        # Draw coordinates with labels
+        cv2.putText(frame, f"X: {x:.3f}m", (panel_x + 10, panel_y + 120),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+        cv2.putText(frame, f"Y: {y:.3f}m", (panel_x + 10, panel_y + 150),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+        cv2.putText(frame, f"Z: {z:.3f}m", (panel_x + 10, panel_y + 180),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+        
+        # Draw distance in bottom right
+        cv2.putText(frame, f"Distance: {distance:.3f}m", 
+                    (width - 200, height - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+    
+    return frame
+
 def main():
     print("Starting program initialization...")
     parser = argparse.ArgumentParser(description="Continuous AprilTag 3D Pose Estimation using robotpy-apriltag")
@@ -85,6 +137,9 @@ def main():
             print(f"Found {len(detections)} tags")
             
             target_detected = False
+            x, y, z = 0, 0, 0
+            distance = 0
+            
             for detection in detections:
                 print(f"Processing tag ID: {detection.getId()}")
                 if detection.getId() == args.target:
@@ -95,21 +150,9 @@ def main():
                         target_detected = True
                         target_detected_action(detection, rvec, tvec)
                         
-                        # Draw coordinate information
+                        # Get coordinate information
                         x, y, z = tvec.flatten()
                         distance = np.linalg.norm(tvec)
-                        
-                        # Draw coordinate information on frame
-                        cv2.putText(frame, f"Target Tag {args.target} Found!", (10, 30),
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        cv2.putText(frame, f"X: {x:.3f}m", (10, 70),
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        cv2.putText(frame, f"Y: {y:.3f}m", (10, 110),
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        cv2.putText(frame, f"Z: {z:.3f}m", (10, 150),
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        cv2.putText(frame, f"Distance: {distance:.3f}m", (10, 190),
-                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                         
                         # Print coordinates to console
                         print(f"\n=== COORDINATES TO TARGET TAG {args.target} ===")
@@ -121,12 +164,13 @@ def main():
                     else:
                         print("Failed to estimate pose")
             
-            if not target_detected:
-                cv2.putText(frame, "Target tag not detected", (10, 30),
-                          cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            
+            # Draw detections
             print("Drawing detections...")
             annotated = draw_detections(frame.copy(), detections)
+            
+            # Draw information overlay
+            print("Drawing information overlay...")
+            annotated = draw_info_overlay(annotated, target_detected, args.target, x, y, z, distance)
             
             print("Displaying frame...")
             cv2.imshow("AprilTag Pose Estimation", annotated)
