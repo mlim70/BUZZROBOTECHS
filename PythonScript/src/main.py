@@ -91,7 +91,7 @@ def main():
         print("Creating preview configuration...")
         # Create a configuration optimized for AprilTag detection
         config = picam2.create_preview_configuration(
-            main={"size": (1920, 1080)},  # Try 1080p first
+            main={"size": (1280, 720)},  # Use 720p for better performance
             controls={
                 "FrameDurationLimits": (33333, 33333),  # 30fps
                 "ExposureTime": 10000,  # 10ms exposure
