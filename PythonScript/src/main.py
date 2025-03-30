@@ -63,6 +63,7 @@ def main():
 
     print("Starting continuous detection. Press 'q' to quit.")
     frame_count = 0
+    
     while True:
         try:
             frame_count += 1
@@ -83,6 +84,7 @@ def main():
             detections = detect_tags(frame, detector)
             print(f"Found {len(detections)} tags")
             
+            target_detected = False
             for detection in detections:
                 print(f"Processing tag ID: {detection.getId()}")
                 if detection.getId() == args.target:
@@ -90,9 +92,38 @@ def main():
                     rvec, tvec = estimate_pose(detection, camera_matrix, dist_coeffs, args.tag_size)
                     if rvec is not None and tvec is not None:
                         print("Pose estimated successfully")
+                        target_detected = True
                         target_detected_action(detection, rvec, tvec)
+                        
+                        # Draw coordinate information
+                        x, y, z = tvec.flatten()
+                        distance = np.linalg.norm(tvec)
+                        
+                        # Draw coordinate information on frame
+                        cv2.putText(frame, f"Target Tag {args.target} Found!", (10, 30),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.putText(frame, f"X: {x:.3f}m", (10, 70),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.putText(frame, f"Y: {y:.3f}m", (10, 110),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.putText(frame, f"Z: {z:.3f}m", (10, 150),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.putText(frame, f"Distance: {distance:.3f}m", (10, 190),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        
+                        # Print coordinates to console
+                        print(f"\n=== COORDINATES TO TARGET TAG {args.target} ===")
+                        print(f"X: {x:.3f}m")
+                        print(f"Y: {y:.3f}m")
+                        print(f"Z: {z:.3f}m")
+                        print(f"Distance: {distance:.3f}m")
+                        print("==========================================\n")
                     else:
                         print("Failed to estimate pose")
+            
+            if not target_detected:
+                cv2.putText(frame, "Target tag not detected", (10, 30),
+                          cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             
             print("Drawing detections...")
             annotated = draw_detections(frame.copy(), detections)
