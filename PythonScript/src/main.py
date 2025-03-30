@@ -11,51 +11,41 @@ def draw_info_overlay(frame, target_detected, tag_id, x, y, z, distance):
     """
     Draw a clean, organized information overlay on the frame.
     """
-    # Create a semi-transparent overlay for the info panel
-    overlay = frame.copy()
     height, width = frame.shape[:2]
-    
-    # Define panel dimensions and position
-    panel_width = 300
-    panel_height = 200
-    panel_x = 10
-    panel_y = 10
-    
-    # Draw semi-transparent background for the panel
-    cv2.rectangle(overlay, 
-                 (panel_x, panel_y), 
-                 (panel_x + panel_width, panel_y + panel_height),
-                 (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
     
     # Define colors
     success_color = (0, 255, 0)  # Green
     error_color = (0, 0, 255)    # Red
     text_color = (255, 255, 255) # White
     
-    # Draw status
+    # Draw status with smaller text
     status_text = "TARGET DETECTED" if target_detected else "TARGET NOT DETECTED"
     status_color = success_color if target_detected else error_color
-    cv2.putText(frame, status_text, (panel_x + 10, panel_y + 40),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2)
+    cv2.putText(frame, status_text, (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 1)
     
     if target_detected:
         # Draw tag ID
-        cv2.putText(frame, f"Tag ID: {tag_id}", (panel_x + 10, panel_y + 80),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+        cv2.putText(frame, f"Tag ID: {tag_id}", (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
         
         # Draw coordinates with labels
-        cv2.putText(frame, f"X: {x:.3f}m", (panel_x + 10, panel_y + 120),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
-        cv2.putText(frame, f"Y: {y:.3f}m", (panel_x + 10, panel_y + 150),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
-        cv2.putText(frame, f"Z: {z:.3f}m", (panel_x + 10, panel_y + 180),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+        cv2.putText(frame, f"X: {x:.3f}m", (10, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
+        cv2.putText(frame, f"Y: {y:.3f}m", (10, 110),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
+        cv2.putText(frame, f"Z: {z:.3f}m", (10, 130),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
         
-        # Draw distance in bottom right
+        # Draw distance in bottom right with smaller text
         cv2.putText(frame, f"Distance: {distance:.3f}m", 
-                    (width - 200, height - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, text_color, 2)
+                    (width - 150, height - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
+    else:
+        # Draw a subtle "not detected" message
+        cv2.putText(frame, "No target detected", 
+                    (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, error_color, 1)
     
     return frame
 
@@ -166,7 +156,7 @@ def main():
             
             # Draw detections
             print("Drawing detections...")
-            annotated = draw_detections(frame.copy(), detections)
+            annotated = draw_detections(frame.copy(), detections, args.target)
             
             # Draw information overlay
             print("Drawing information overlay...")

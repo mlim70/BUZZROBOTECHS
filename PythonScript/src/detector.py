@@ -66,23 +66,29 @@ def estimate_pose(detection, camera_matrix, dist_coeffs, tag_size):
         return None, None
     return rvec, tvec
 
-def draw_detections(frame, detections):
+def draw_detections(frame, detections, target_id=None):
     """
     Draw detected tag outlines, centers, and IDs on the frame.
     
     Parameters:
       frame (np.ndarray): The image frame.
       detections (list): List of detected tag objects.
+      target_id (int): ID of the target tag to highlight in green.
       
     Returns:
       np.ndarray: The annotated frame.
     """
     for detection in detections:
         corners = get_detection_corners(detection).astype(int)
-        cv2.polylines(frame, [corners.reshape((-1, 1, 2))], isClosed=True, color=(0, 255, 0), thickness=2)
+        tag_id = detection.getId()
+        
+        # Use green for target tag, blue for others
+        color = (0, 255, 0) if tag_id == target_id else (255, 0, 0)
+        
+        cv2.polylines(frame, [corners.reshape((-1, 1, 2))], isClosed=True, color=color, thickness=2)
         center = detection.getCenter()
         cX, cY = int(center.x), int(center.y)
         cv2.circle(frame, (cX, cY), 5, (0, 0, 255), -1)
-        cv2.putText(frame, f"ID: {detection.getId()}", (cX - 10, cY - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        cv2.putText(frame, f"ID: {tag_id}", (cX - 10, cY - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
     return frame
