@@ -97,8 +97,6 @@ def main():
                 "ExposureTime": 10000,  # 10ms exposure
                 "AeEnable": True,       # Enable auto exposure
                 "AwbEnable": True,      # Enable auto white balance
-                "AfMode": 2,            # Continuous autofocus
-                "AfSpeed": 0,           # Fast autofocus
                 "Contrast": 1.5,        # Increase contrast for better edge detection
                 "Sharpness": 1.5,       # Increase sharpness
                 "Brightness": 0.1       # Slightly increase brightness
