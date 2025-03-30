@@ -14,37 +14,37 @@ void loop() {
     int comma4 = data.indexOf(',', comma3 + 1);
     int comma5 = data.indexOf(',', comma4 + 1);
     
+    // Check if commas are in correct order
     if (comma1 > 0 && comma2 > comma1 && comma3 > comma2 && 
         comma4 > comma3 && comma5 > comma4) {
-      // Parse position data (x, y, z)
-      float x = data.substring(0, comma1).toFloat();
-      float y = data.substring(comma1 + 1, comma2).toFloat();
-      float z = data.substring(comma2 + 1, comma3).toFloat();
-      
-      // Parse orientation data (rx, ry, rz)
-      float rx = data.substring(comma3 + 1, comma4).toFloat();
-      float ry = data.substring(comma4 + 1, comma5).toFloat();
-      float rz = data.substring(comma5 + 1).toFloat();
-      
-      // Now you have:
-      // x, y, z: Position in meters
-      // rx, ry, rz: Rotation vector components (in radians)
-      
-      // You can use these values to:
-      // 1. Control servos based on position
-      // 2. Calculate angles for arm movement
-      // 3. Log the data for debugging
-      
-      // Example: Print the received data
-      Serial.print("Position (m): ");
-      Serial.print(x); Serial.print(", ");
-      Serial.print(y); Serial.print(", ");
-      Serial.println(z);
-      
-      Serial.print("Rotation (rad): ");
-      Serial.print(rx); Serial.print(", ");
-      Serial.print(ry); Serial.print(", ");
-      Serial.println(rz);
+        
+        // Convert directly to floats (will be 0.0 if conversion fails)
+        float x = data.substring(0, comma1).toFloat();
+        float y = data.substring(comma1 + 1, comma2).toFloat();
+        float z = data.substring(comma2 + 1, comma3).toFloat();
+        float rx = data.substring(comma3 + 1, comma4).toFloat();
+        float ry = data.substring(comma4 + 1, comma5).toFloat();
+        float rz = data.substring(comma5 + 1).toFloat();
+        
+        // Check if any value is 0 (indicating conversion failure)
+        if (x != 0.0 || y != 0.0 || z != 0.0 || 
+            rx != 0.0 || ry != 0.0 || rz != 0.0) {
+            
+            // All values are valid, process the data
+            Serial.print("Position (m): ");
+            Serial.print(x); Serial.print(", ");
+            Serial.print(y); Serial.print(", ");
+            Serial.println(z);
+            
+            Serial.print("Rotation (rad): ");
+            Serial.print(rx); Serial.print(", ");
+            Serial.print(ry); Serial.print(", ");
+            Serial.println(rz);
+        } else {
+            Serial.println("Error: Invalid number format");
+        }
+    } else {
+        Serial.println("Error: Invalid comma positions");
     }
   }
 }
